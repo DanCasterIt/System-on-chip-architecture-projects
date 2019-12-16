@@ -1,0 +1,249 @@
+\documentclass[peerreview]{IEEEtran}
+\usepackage{cite} % Tidies up citation numbers.
+\usepackage{url} % Provides better formatting of URLs.
+\usepackage[utf8]{inputenc} % Allows Turkish characters.
+\usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables for horizontal lines
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+\usepackage{listings}
+
+\usepackage{hyperref}
+
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\lstdefinestyle{CStyle}{
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  frame=L,
+  xleftmargin=\parindent,
+  language=C,
+  showstringspaces=false,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\bfseries\color{green!40!black},
+  commentstyle=\itshape\color{purple!40!black},
+  identifierstyle=\color{blue},
+  stringstyle=\color{orange},
+}
+
+\hyphenation{op-tical net-works semi-conduc-tor} % Corrects some bad hyphenation 
+
+\begin{document}
+%\begin{titlepage}
+% paper title
+% can use linebreaks \\ within to get better formatting as desired
+\title{System on Chip Architecture \\ Lab 1 Report}
+
+% author names and affiliations
+
+\author{Daniele Castro S253244\\
+System-on-chip architecture\\
+Politecnico of Turin\\
+}
+\date{26/12/2018}
+
+% make the title area
+\maketitle
+\tableofcontents
+\listoffigures
+%\end{titlepage}
+
+\IEEEpeerreviewmaketitle
+\begin{abstract}
+In this lab I have implemented a simple PSM (Power State Machine) using the MCU STM32F051R8 on the discovery board. The project,the way is made, is almost useless as it only gives us the possibility to develop simple functions to switch in various low power modes and reuse them in more useful projects. Ihave also made some measurements for each low power mode so that I can estimate the lowest power consumption for each state with every peripheral switched off since I have not switched on any of them.
+\end{abstract}
+\section{Introduction}
+I am going to explain in sequence\\
+1) The PSM states\\
+2) How the transition happens\\
+3) The code I have written
+\section{Background}
+As described in the Reference Manual:\\
+"The device features three low-power modes:
+\begin{itemize}
+\item Sleep mode (CPU clock off, all peripherals including Cortex®-M0 core peripherals like
+NVIC, SysTick, etc. are kept running)
+\item Stop mode (all clocks are stopped)
+\item Standby mode (1.8V domain powered-off)"
+\end{itemize}
+As described in the Assignment:
+\begin{itemize}
+\item "SLEEP (WFI) mode is waken-up by any interrupt/event. In this case we use the user button to exit.
+\item STOP mode requires RTC by setting EXTI line 17 that is connected to the RTC. We use RTC as we do not have EXTI source connected.
+\item STANBY mode uses WKUP pin 1, that is PA.0 connected to the USER button. No RTC is used.
+GPIO configuration is present in SLEEP and STOP,it is not present in STANDBY mode \textcolor{red}{because we have to reset after this state and we want a kind of stay off state. We need power just to handle any reset event.} Wakeup source from Sleep and Stop mode is an EXTI Line configured in event mode. The wakeup source from
+Standby mode is the WKUP1 pin (PA0)."
+\end{itemize}
+\section{Proposed Solution}
+Since it is not possible to switch between low power states without passing in ACTIVE mode, I have implemented the following PSM to switch between states. At power on the board waits for a user button pressure so that it can enter in the first low-power mode. Then, once entered in STOP mode, it waits for another user button pressure to exit from the current state. When exited, the board goes into sleep mode and exits from it after the RTC overflows. So we can finally go into standby mode. Here, the user button pressure will cause a reset of the board. Also note the switching order:
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.8\columnwidth]{psm} 
+\caption{Power State Machine}
+\label{fig_sim}
+\end{figure} 
+\section{Results and discussion}
+Here I show some figures of measurements I have done during the lab sessions that display current consumption of each low power state and active state
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.6\columnwidth]{adc_active} 
+\caption{Active mode power consumption}
+\label{fig_A}
+\end{figure}
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.6\columnwidth]{adc_stop} 
+\caption{Stop mode power consumption}
+\label{fig_B}
+\end{figure}
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.6\columnwidth]{adc_sleep} 
+\caption{Sleep mode power consumption}
+\label{fig_C}
+\end{figure}
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.6\columnwidth]{adc_standby} 
+\caption{Standby mode power consumption}
+\label{fig_D}
+\end{figure}
+\\As I did not switch on any peripheral, these results are good because they match values reported in the datasheet.\\
+Concerning the code implementation I have only commented out some \lstinline[style=CStyle]{while();} loops at the end of the functions 
+\begin{lstlisting}[style=CStyle]
+void SleepMode_Measure(void);
+void StopMode_Measure(void);
+\end{lstlisting}
+so that, after wake up, I can move into active state and I can move to the next low power state. I have also added:
+\begin{lstlisting}[style=CStyle]
+void led_modes(uint8_t mode, uint8_t times);
+void UART2_init(void);
+\end{lstlisting}
+so that, every time I switch between states, I can both flash green and blue LEDs on the board in four different patterns  and I can also print, on the serial terminal, the specific name of the current state for debugging purposes. To do that I had to write down the low level implementations and declarations of
+\begin{lstlisting}[style=CStyle]
+#ifdef __GNUC__
+  /* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
+     set to 'Yes') calls __io_putchar() */
+  #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+  #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+	
+#ifdef __GNUC__
+  /* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
+     set to 'Yes') calls __io_putchar() */
+  #define PUTCHAR_PROTOTYPE int __io_getchar(int ch)
+#else
+  #define GETCHAR_PROTOTYPE int fgetc(FILE *f)
+#endif /* __GNUC__ */
+
+...
+
+PUTCHAR_PROTOTYPE
+{
+  /* fputc implementation: */
+  /* write a character to the USART */
+  USART_SendData(USART2, (uint8_t) ch);
+  /* Loop until transmit data register is empty */
+  while (USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET)
+  {}
+  return ch;
+}
+
+GETCHAR_PROTOTYPE
+{
+	FILE *fd;
+	char ch;
+  /* fgetc implementation: */
+  /* Loop until RXNE = 1 */
+  while (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) == RESET)
+  {}
+  /* read a character to the USART */
+	ch = USART_ReceiveData(USART2);
+	if(ch == '\r' || ch == '\n')	printf("\n\r");
+	else fputc(ch, fd);
+  return ch;
+}
+\end{lstlisting}
+as a result I obtained on the serial console a full listing of what was currently happening on the board:\\
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.8\columnwidth]{serial} 
+\caption{Serial terminal window}
+\label{fig_serial}
+\end{figure}
+\\Finally, here is the piece of code I have implemented to switch between all the states:
+\begin{lstlisting}[style=CStyle]
+printf("STOP Mode Entry.\n\r");
+led_modes(3, 4);
+...
+StopMode_Measure();
+	
+UART2_init();
+printf("Sleep Mode Entry.\n\r");
+led_modes(2, 4);
+...
+SleepMode_Measure();
+	
+UART2_init();
+printf("STANDBY Mode Entry.\n\r");
+led_modes(0, 4);
+...
+StandbyMode_Measure(); //here it blocks and resets if user button is pressed.
+
+/*following code will never reached:*/
+UART2_init();
+printf("Exiting all of the modalities.\n\r");
+led_modes(1, 4);
+while(1);
+\end{lstlisting}
+\begin{lstlisting}[style=CStyle]
+void StopMode_Measure(void);
+\end{lstlisting}
+\begin{itemize}
+\item configures RTC
+\item configures GPIO as analog to reduce current consumption
+\item Disable GPIOs clock 
+\item configures EXTI
+\item configures NVIC
+\item enables RTC
+\item enters in STOP mode
+\end{itemize}
+Note that RTC (Real Time Clock) is clocked by a low power/frequency clock source called LSI that is an internal RC oscillator. It has also some registers called RCC that can control the clock source of this and other peripherals and save the current status when there is no power.
+\begin{lstlisting}[style=CStyle]
+void SleepMode_Measure(void);
+\end{lstlisting}
+\begin{itemize}
+\item simply disables GPIO clock
+\item configures user button in EXTI mode
+\item enters in SLEEP mode
+\end{itemize}
+\begin{lstlisting}[style=CStyle]
+void StandbyMode_Measure(void);
+\end{lstlisting}
+\begin{itemize}
+\item sets PIN 2 as wake up PIN
+\item enters in STANDBY mode
+\end{itemize}
+It is also important to notice that, has the name suggests, inside these functions
+\begin{lstlisting}[style=CStyle]
+void led_modes(uint8_t mode, uint8_t times);
+void UART2_init(void);
+\end{lstlisting}
+I have initialized again the peripherals each time, expecially the GPIO as it is, all the times, disabled by the low-power switching functions I have mentioned above.\\
+As shown in the comments, I have also put an unreachable piece of code, that explains the fact that after exiting from the last power mode (standby) we can only reset.
+\label{tab:template}
+
+\section{Conclusions}
+In this discussion I have accomplished the assignment requested and, as an extra, I have also properly configured the serial port to print debug messages and, eventually, get strings from the input even if I have not used it in this specific lab. I would like to reuse these functions in future labs.
+
+\begin{thebibliography}{1}
+\bibitem{Reference_Manual}
+STM32F051R8 Reference Manual (RM0091), [pdf] Available at:\\ \href{https://www.st.com/content/ccc/resource/technical/document/reference_manual/c2/f8/8a/f2/18/e6/43/96/DM00031936.pdf/files/DM00031936.pdf/jcr:content/translations/en.DM00031936.pdf}{\underline{\textcolor{blue}{Link}}}.\\Accessed on: Feb. 10, 2019.
+\bibitem{User_Manual}
+STM32F0DISCOVERY User Manual (UM1525), [pdf] Available at:\\ \href{https://www.st.com/content/ccc/resource/technical/document/user_manual/30/ae/6e/54/d3/b6/46/17/DM00050135.pdf/files/DM00050135.pdf/jcr:content/translations/en.DM00050135.pdf}{\underline{\textcolor{blue}{Link}}}.\\Accessed on: Feb. 10, 2019.
+\end{thebibliography}
+
+\end{document}

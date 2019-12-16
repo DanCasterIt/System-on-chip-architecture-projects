@@ -1,0 +1,42 @@
+clear_serial
+i = 1;
+obj = serial("COM15", "BaudRate", 115200, "Terminator", "CR/LF");
+fopen(obj);
+fprintf(obj, "at+s.ssidtxt=TEST");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fprintf(obj, "at+s.scfg=wifi_priv_mode,0");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fprintf(obj, "at+s.scfg=wifi_mode,1");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fprintf(obj, "at+s.scfg=ip_use_dhcp,1");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fprintf(obj, "at&w");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fprintf(obj, "at+cfun=1");
+M(i, :) = string(fgets(obj));
+i = i + 1;
+fgets(obj);
+M(i, :) = string(fgets(obj))
+flushoutput(obj);
+fclose(obj);
+clear all
